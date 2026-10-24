@@ -20,7 +20,8 @@ that directory on persistent storage for deployments. Attachment downloads requi
 AUTHOR session or an ADMIN session.
 
 The provided author/book seed dataset is included at `src/main/resources/bookleaf_sample_data.json`.
-Seeding is disabled by default; when enabled against an empty database, the configured admin and author
+seeding is disabled by default. When enabled, it adds the configured admin and any missing sample
+authors/books without deleting or changing existing accounts or books; the configured admin and author
 passwords are required. Self-service signup always creates author accounts. After the first admin has been
 provisioned through the seed or another trusted process, admins can create email-bound invitations from
 the admin dashboard. The recipient must use the link and matching email within 48 hours to create an admin
@@ -36,7 +37,7 @@ account. Invitation email delivery is not configured; share the generated link s
 | `DB_USERNAME`, `DB_PASSWORD` | MySQL credentials for a least-privilege application account | required |
 | `CORS_ALLOWED_ORIGINS` | comma-separated frontends | localhost:3000, 5173, 8080 |
 | `ATTACHMENT_STORAGE_DIR` | Private persistent directory for uploaded ticket files | `./uploads` |
-| `SEED_ENABLED` | Seed admin and sample authors/books on an empty database | `false` |
+| `SEED_ENABLED` | Add the configured admin and any missing sample authors/books | `false` |
 
 Always configure a unique, randomly generated `JWT_SECRET`. The former source fallback was public,
 so treat tokens signed with it as compromised: setting a new secret and restarting invalidates all

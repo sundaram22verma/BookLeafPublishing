@@ -20,16 +20,17 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Seeds an admin plus the authors/books from bookleaf_sample_data.json on first boot (only when the
- * users table is empty). The JSON reader is deliberately tolerant: key names are matched ignoring case,
- * underscores and dashes (royalty_paid == royaltyPaid), and books may be a top-level array or nested
- * inside each author.
+ * Adds a configured admin and any missing authors/books from bookleaf_sample_data.json. Existing
+ * accounts and books are left unchanged. The JSON reader is deliberately tolerant: key names are
+ * matched ignoring case, underscores and dashes (royalty_paid == royaltyPaid), and books may be a
+ * top-level array or nested inside each author.
  */
 @Slf4j
 @Component
@@ -54,13 +55,20 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) throws Exception {
-        if (!enabled || users.count() > 0) return;
+        if (!enabled) return;
         requireSeedPassword("SEED_ADMIN_PASSWORD", adminPassword);
         if (dataFile.exists()) requireSeedPassword("SEED_AUTHOR_PASSWORD", authorPassword);
 
-        users.save(User.builder().name("BookLeaf Support").email(adminEmail)
-                .passwordHash(encoder.encode(adminPassword)).role(Role.ADMIN).build());
-        log.info("Seeded admin {}", adminEmail);
+        User admin = users.findByEmailIgnoreCase(adminEmail).orElse(null);
+        if (admin == null) {
+            users.save(User.builder().name("BookLeaf Support").email(adminEmail)
+                    .passwordHash(encoder.encode(adminPassword)).role(Role.ADMIN).build());
+            log.info("Seeded admin {}", adminEmail);
+        } else if (admin.getRole() != Role.ADMIN) {
+            throw new IllegalStateException("Configured seed admin email belongs to a non-admin account");
+        } else {
+            log.info("Seed admin already exists; leaving the existing account unchanged");
+        }
 
         if (!dataFile.exists()) {
             log.warn("bookleaf_sample_data.json not found on classpath; only the admin was seeded");
@@ -76,21 +84,32 @@ public class DataSeeder implements CommandLineRunner {
             }
 
             Map<String, User> lookup = new HashMap<>();
-            int bookCount = 0;
+            Map<Long, List<Book>> existingBooksByAuthor = new HashMap<>();
+            int authorsAdded = 0;
+            int booksAdded = 0;
             for (JsonNode a : authorsNode) {
                 String name = text(a, "name", "authorname", "fullname");
                 String email = text(a, "email", "authoremail");
                 if (name == null) name = "Author";
                 if (email == null) email = name.toLowerCase().replaceAll("[^a-z0-9]+", ".") + "@example.com";
-                User author = users.save(User.builder().name(name).email(email.toLowerCase())
-                        .passwordHash(encoder.encode(authorPassword)).role(Role.AUTHOR).build());
+                String normalizedEmail = email.toLowerCase();
+                User author = users.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+                if (author == null) {
+                    author = users.save(User.builder().name(name).email(normalizedEmail)
+                            .passwordHash(encoder.encode(authorPassword)).role(Role.AUTHOR).build());
+                    authorsAdded++;
+                } else if (author.getRole() != Role.AUTHOR) {
+                    throw new IllegalStateException("Sample author email belongs to a non-author account: " + normalizedEmail);
+                }
                 String key = text(a, "id", "authorid", "_id");
                 if (key != null) lookup.put(key, author);
                 lookup.put(author.getEmail(), author);
 
                 JsonNode nested = field(a, "books");
                 if (nested != null && nested.isArray()) {
-                    for (JsonNode b : nested) { saveBook(b, author); bookCount++; }
+                    for (JsonNode b : nested) {
+                        if (saveBookIfMissing(b, author, existingBooksByAuthor)) booksAdded++;
+                    }
                 }
             }
             if (booksNode != null && booksNode.isArray()) {
@@ -100,12 +119,11 @@ public class DataSeeder implements CommandLineRunner {
                     User owner = ak != null ? lookup.get(ak) : null;
                     if (owner == null && ae != null) owner = lookup.get(ae.toLowerCase());
                     if (owner == null) { log.warn("Skipping book with unknown author reference: {}", ak != null ? ak : ae); continue; }
-                    saveBook(b, owner);
-                    bookCount++;
+                    if (saveBookIfMissing(b, owner, existingBooksByAuthor)) booksAdded++;
                 }
             }
-            log.info("Seeded {} authors and {} books (author password: configured via SEED_AUTHOR_PASSWORD)",
-                    authorsNode.size(), bookCount);
+            log.info("Sample data seed complete: added {} authors and {} books; existing records were preserved",
+                    authorsAdded, booksAdded);
         }
     }
 
@@ -115,13 +133,22 @@ public class DataSeeder implements CommandLineRunner {
         }
     }
 
-    private void saveBook(JsonNode b, User author) {
+    private boolean saveBookIfMissing(JsonNode b, User author, Map<Long, List<Book>> existingBooksByAuthor) {
+        String title = orDefault(text(b, "title", "booktitle", "name"), "Untitled");
+        String isbn = text(b, "isbn");
+        List<Book> existingBooks = existingBooksByAuthor.computeIfAbsent(author.getId(),
+                ignored -> new ArrayList<>(books.findByAuthorIdOrderByPublicationDateDescTitleAsc(author.getId())));
+        boolean alreadyExists = existingBooks.stream().anyMatch(existing ->
+                existing.getTitle().equalsIgnoreCase(title)
+                        && java.util.Objects.equals(existing.getIsbn(), isbn));
+        if (alreadyExists) return false;
+
         BigDecimal earned = decimal(b, "totalroyaltyearned", "royaltyearned");
         BigDecimal paid = decimal(b, "royaltypaid");
         BigDecimal pending = decimal(b, "royaltypending");
         if (pending == null && earned != null && paid != null) pending = earned.subtract(paid);
-        books.save(Book.builder().author(author)
-                .title(orDefault(text(b, "title", "booktitle", "name"), "Untitled"))
+        Book saved = books.save(Book.builder().author(author)
+                .title(title)
                 .isbn(text(b, "isbn"))
                 .genre(text(b, "genre"))
                 .publicationDate(date(text(b, "publicationdate", "publisheddate", "publishdate")))
@@ -130,6 +157,8 @@ public class DataSeeder implements CommandLineRunner {
                 .totalCopiesSold(intValue(b, "totalcopiessold", "copiessold"))
                 .totalRoyaltyEarned(earned).royaltyPaid(paid).royaltyPending(pending)
                 .build());
+        existingBooks.add(saved);
+        return true;
     }
 
     // ---- tolerant JSON helpers ----

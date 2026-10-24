@@ -130,11 +130,11 @@ Backend variables are configured in `backend/src/main/resources/application.yml`
 | `GROQ_API_KEY` | Optional server-side credential for Groq AI features. |
 | `GROQ_MODEL` | Groq model ID; defaults to `qwen/qwen3.8-27b`. |
 | `AI_ENABLED` | Enables or disables AI functionality; defaults to `true`. |
-| `SEED_ENABLED` | When `true`, seed an initial admin and the bundled sample authors/books if the users table is empty; defaults to `false`. |
+| `SEED_ENABLED` | When `true`, add the configured admin and any missing bundled sample authors/books; defaults to `false`. |
 | `SEED_ADMIN_EMAIL` | Email for the seeded administrator. |
 | `SEED_ADMIN_PASSWORD`, `SEED_AUTHOR_PASSWORD` | Passwords used during seeding; each must be at least 12 characters when seeding is enabled. |
 
-Seeding is optional. Configure the seed passwords before enabling it; do not use sample credentials in a shared or production environment. The bundled sample dataset is `backend/src/main/resources/bookleaf_sample_data.json`.
+Seeding is optional. Configure the seed passwords before enabling it; do not use sample credentials in a shared or production environment. Seeding preserves existing accounts and books and skips matching sample records. The bundled sample dataset is `backend/src/main/resources/bookleaf_sample_data.json`.
 
 ## Database
 
