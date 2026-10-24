@@ -2,6 +2,17 @@
 
 BookLeaf is a full-stack support and communication portal for BookLeaf authors and operations staff. Authors can review their books and royalty figures, submit support tickets, and follow up in a conversation thread. Administrators can triage and manage the ticket queue, respond to authors, and keep private internal notes.
 
+## Demo access
+
+The deployed demo includes an administrator account and sample author accounts. Share the current demo passwords with evaluators through a private channel; do not commit passwords or other credentials to this repository.
+
+| Role | Login email | Password |
+|---|---|---|
+| Admin | `admin@bookleaf.com` | Provided separately |
+| Author | Use an email listed in the sample dataset | Provided separately |
+
+Change any credentials that have been exposed before sharing the demo, and rotate or disable the demo accounts after evaluation.
+
 ## Key features
 
 - Separate author and administrator experiences with role-based access.
