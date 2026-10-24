@@ -1,0 +1,1 @@
+- API requests and DTO mapping live in `src/lib/api.ts`; React Query hooks and authentication state live in `src/lib/store.ts`. Configure the backend URL with `VITE_API_BASE_URL`.
