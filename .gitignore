@@ -1,5 +1,6 @@
 /.idea/
 /uploads/
+/backend/BookLeaf_Technical_Assignment_1.pdf
 
 # Environment files
 .env
