@@ -51,7 +51,7 @@ bookleaf:
     enabled: ${AI_ENABLED:true}
   jwt:
     secret: ${JWT_SECRET}
-    expiration-minuetes: ${JWT_EXPIRATION_MINUTES:480}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:480}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:8080}
   seed:
